@@ -26,6 +26,12 @@ from io import BytesIO
 import shap
 import pandas as pd
 
+# 全局配置：确保所有matplotlib图表中文正常显示
+import matplotlib
+matplotlib.rcParams['axes.unicode_minus'] = False
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+
 
 # -------------------- 全局配置（修复中文显示 + 路径兼容 + 部署适配） --------------------
 # 忽略冗余警告，避免部署日志刷屏
