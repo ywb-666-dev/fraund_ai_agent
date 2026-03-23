@@ -93,10 +93,18 @@ def get_shap_values(feature_vector_scaled: pd.DataFrame):
     return shap_vals[:len(feature_vector_scaled.columns)], expected_val
 
 def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expected_value):
-    """生成SHAP图的base64编码（优化分辨率和特征名称显示）"""
+    """生成SHAP图（修复生成失败 + 中文乱码）"""
     try:
+        # 🔴 关键：设置中文字体，避免乱码导致生成失败
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
+        plt.rcParams['axes.unicode_minus'] = False
+
+        # 处理SHAP值维度：兼容二分类/多分类场景
         if isinstance(shap_values, list):
             shap_values = np.array(shap_values)
+        if len(shap_values.shape) == 3:  # 多分类场景：(样本数, 特征数, 类别数)
+            shap_values = shap_values[0]  # 取第一个类别（舞弊类别）的SHAP值
+
         if isinstance(expected_value, (list, np.ndarray)):
             expected_value = expected_value.item() if expected_value.size == 1 else expected_value[0]
 
@@ -107,8 +115,7 @@ def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expect
             feature_names=feature_vector_scaled.columns.tolist()
         )
         plt.figure(figsize=(10, 6))
-        # 调整SHAP图的字体大小，特征名称不重叠
-        shap.waterfall_plot(exp, show=False, max_display=8, font_size=10)
+        shap.waterfall_plot(exp, show=False, max_display=8, fontsize=10)
         plt.tight_layout()
 
         buf = BytesIO()
@@ -120,59 +127,56 @@ def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expect
     except Exception as e:
         st.warning(f"SHAP图生成失败：{str(e)}")
         return ""
-
+    
 def generate_trend_plot_base64(financial_df: pd.DataFrame):
-    """生成财务指标趋势图（优化显示效果：适配真实数据、调整样式）"""
+    """生成财务指标趋势图（修复中文乱码 + 适配2015-2019数据）"""
     try:
-        # 调整图表尺寸，适配Streamlit页面
+        # 🔴 关键：设置中文字体，解决方块乱码
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']  # 优先黑体，备选微软雅黑
+        plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle('核心财务指标趋势分析 (2015-2019)', fontsize=16, fontweight='bold', y=0.98)
 
-        # 定义配色（更清晰的区分度）
         colors = ['#dc2626', '#2563eb', '#d97706', '#059669']
         markers = ['o', 's', '^', '*']
 
-        # 1. ROE趋势（你的数据中ROE是0.02左右，用折线+点突出）
+        # ROE 趋势
         ax1.plot(financial_df['year'], financial_df['ROE'], marker=markers[0], linewidth=3, color=colors[0], markersize=6)
         ax1.set_title('ROE (净资产收益率) 变化趋势', fontweight='bold', fontsize=12)
         ax1.set_xlabel('年份', fontsize=10)
         ax1.set_ylabel('ROE', fontsize=10)
         ax1.grid(True, alpha=0.3, linestyle='--')
-        # 适配你的ROE数值范围（0.02左右），调整y轴范围
         ax1.set_ylim(min(financial_df['ROE']) * 0.8, max(financial_df['ROE']) * 1.2)
 
-        # 2. 资产负债率趋势
+        # 资产负债率趋势
         ax2.plot(financial_df['year'], financial_df['资产负债率'], marker=markers[1], linewidth=3, color=colors[1], markersize=6)
         ax2.set_title('资产负债率 变化趋势', fontweight='bold', fontsize=12)
         ax2.set_xlabel('年份', fontsize=10)
         ax2.set_ylabel('资产负债率', fontsize=10)
         ax2.grid(True, alpha=0.3, linestyle='--')
-        ax2.set_ylim(0, max(financial_df['资产负债率']) * 1.1)  # 从0开始，更直观
+        ax2.set_ylim(0, max(financial_df['资产负债率']) * 1.1)
 
-        # 3. 流动比率趋势
+        # 流动比率趋势
         ax3.plot(financial_df['year'], financial_df['流动比率'], marker=markers[2], linewidth=3, color=colors[2], markersize=6)
         ax3.set_title('流动比率 变化趋势', fontweight='bold', fontsize=12)
         ax3.set_xlabel('年份', fontsize=10)
         ax3.set_ylabel('流动比率', fontsize=10)
         ax3.grid(True, alpha=0.3, linestyle='--')
 
-        # 4. 营业收入增长率趋势（你的数据中是固定值，突出显示）
-        ax4.plot(financial_df['year'], financial_df['营收总额'], marker=markers[3], linewidth=3, color=colors[3], markersize=6)
-        ax4.set_title('营业收入增长率 变化趋势', fontweight='bold', fontsize=12)
+        # 存货周转率趋势（替换原营收总额，匹配模拟数据）
+        ax4.plot(financial_df['year'], financial_df['存货周转率'], marker=markers[3], linewidth=3, color=colors[3], markersize=6)
+        ax4.set_title('存货周转率 变化趋势', fontweight='bold', fontsize=12)
         ax4.set_xlabel('年份', fontsize=10)
-        ax4.set_ylabel('营业收入增长率', fontsize=10)
+        ax4.set_ylabel('存货周转率', fontsize=10)
         ax4.grid(True, alpha=0.3, linestyle='--')
 
-        # 调整子图间距，避免重叠
         plt.tight_layout(rect=[0, 0, 1, 0.96])
-
         buf = BytesIO()
-        # 提高图片分辨率，更清晰
         plt.savefig(buf, format='png', dpi=200, bbox_inches='tight')
         buf.seek(0)
         img_base64 = base64.b64encode(buf.read()).decode('utf-8')
         plt.close()
-
         return img_base64
     except Exception as e:
         st.warning(f"趋势图生成失败：{str(e)}")
