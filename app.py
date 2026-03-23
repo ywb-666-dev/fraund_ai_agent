@@ -587,7 +587,7 @@ with st.sidebar:
 # 顶部 Header（补全演示标签）
 col_h1, col_h2, col_h3 = st.columns([1, 6, 1])
 with col_h2:
-    demo_tag_html = '<div class="demo-tag">演示模式</div>' if st.session_state.demo_mode else ''
+    demo_tag_html = '<div class="demo-tag"></div>' if st.session_state.demo_mode else ''
     st.markdown(f"""
         <div class="header-container">
             {demo_tag_html}
@@ -989,7 +989,7 @@ else:
             with tab2:
                 if financial_df is not None and len(financial_df) > 1:
                     try:
-                        st.image(f"data:image/png;base64,{trend_img_base64}", width=None)
+                        st.image(f"data:image/png;base64,{trend_img_base64}")
 
                         st.markdown("### 📊 时序特征分析")
                         ts_df = pd.DataFrame(list(ts_features.items()), columns=['时序特征', '数值'])
