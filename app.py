@@ -19,6 +19,13 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_community.vectorstores import Chroma
 from dotenv import load_dotenv
+import matplotlib.pyplot as plt
+import numpy as np
+import base64
+from io import BytesIO
+import shap
+import pandas as pd
+
 
 # -------------------- 全局配置（修复中文显示 + 路径兼容 + 部署适配） --------------------
 # 忽略冗余警告，避免部署日志刷屏
@@ -92,48 +99,32 @@ def get_shap_values(feature_vector_scaled: pd.DataFrame):
     expected_val = 0.7
     return shap_vals[:len(feature_vector_scaled.columns)], expected_val
 
-def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expected_value):
-    """生成SHAP图（修复生成失败 + 中文乱码）"""
+import matplotlib.pyplot as plt
+import numpy as np
+import base64
+from io import BytesIO
+import shap
+import pandas as pd
+
+# 新增：全局字体适配函数（解决Linux/Streamlit无中文字体问题）
+def set_chinese_font():
+    """手动配置中文字体，兼容所有环境（包括Streamlit Cloud）"""
     try:
-        # 🔴 关键：设置中文字体，避免乱码导致生成失败
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
+        # 方案1：优先加载系统内置的中文字体（Linux/macOS/Windows兼容）
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'WenQuanYi Micro Hei', 'Heiti TC']
+        plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+        # 强制设置字体渲染方式，避免方块
+        plt.rcParams['font.family'] = 'sans-serif'
+    except:
+        # 方案2：兜底配置，确保中文显示为无乱码的替代字体
+        plt.rcParams['font.sans-serif'] = ['sans-serif']
         plt.rcParams['axes.unicode_minus'] = False
 
-        # 处理SHAP值维度：兼容二分类/多分类场景
-        if isinstance(shap_values, list):
-            shap_values = np.array(shap_values)
-        if len(shap_values.shape) == 3:  # 多分类场景：(样本数, 特征数, 类别数)
-            shap_values = shap_values[0]  # 取第一个类别（舞弊类别）的SHAP值
-
-        if isinstance(expected_value, (list, np.ndarray)):
-            expected_value = expected_value.item() if expected_value.size == 1 else expected_value[0]
-
-        exp = shap.Explanation(
-            values=shap_values,
-            base_values=expected_value,
-            data=feature_vector_scaled.iloc[0].values,
-            feature_names=feature_vector_scaled.columns.tolist()
-        )
-        plt.figure(figsize=(10, 6))
-        shap.waterfall_plot(exp, show=False, max_display=8, fontsize=10)
-        plt.tight_layout()
-
-        buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=200, bbox_inches='tight')
-        buf.seek(0)
-        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-        plt.close()
-        return img_base64
-    except Exception as e:
-        st.warning(f"SHAP图生成失败：{str(e)}")
-        return ""
-    
 def generate_trend_plot_base64(financial_df: pd.DataFrame):
-    """生成财务指标趋势图（修复中文乱码 + 适配2015-2019数据）"""
+    """生成财务指标趋势图（彻底解决中文乱码 + 适配2015-2019数据）"""
     try:
-        # 🔴 关键：设置中文字体，解决方块乱码
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']  # 优先黑体，备选微软雅黑
-        plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+        # 第一步：强制设置中文字体（核心修复）
+        set_chinese_font()
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle('核心财务指标趋势分析 (2015-2019)', fontsize=16, fontweight='bold', y=0.98)
@@ -164,7 +155,7 @@ def generate_trend_plot_base64(financial_df: pd.DataFrame):
         ax3.set_ylabel('流动比率', fontsize=10)
         ax3.grid(True, alpha=0.3, linestyle='--')
 
-        # 存货周转率趋势（替换原营收总额，匹配模拟数据）
+        # 存货周转率趋势
         ax4.plot(financial_df['year'], financial_df['存货周转率'], marker=markers[3], linewidth=3, color=colors[3], markersize=6)
         ax4.set_title('存货周转率 变化趋势', fontweight='bold', fontsize=12)
         ax4.set_xlabel('年份', fontsize=10)
@@ -180,6 +171,44 @@ def generate_trend_plot_base64(financial_df: pd.DataFrame):
         return img_base64
     except Exception as e:
         st.warning(f"趋势图生成失败：{str(e)}")
+        return ""
+
+def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expected_value):
+    """生成SHAP图（彻底解决中文乱码 + 修复fontsize参数错误）"""
+    try:
+        # 第一步：强制设置中文字体（核心修复）
+        set_chinese_font()
+        # 设置全局字体大小（替代fontsize参数）
+        plt.rcParams['font.size'] = 10
+
+        # 处理SHAP值维度
+        if isinstance(shap_values, list):
+            shap_values = np.array(shap_values)
+        if len(shap_values.shape) == 3:
+            shap_values = shap_values[0]
+
+        if isinstance(expected_value, (list, np.ndarray)):
+            expected_value = expected_value.item() if expected_value.size == 1 else expected_value[0]
+
+        exp = shap.Explanation(
+            values=shap_values,
+            base_values=expected_value,
+            data=feature_vector_scaled.iloc[0].values,
+            feature_names=feature_vector_scaled.columns.tolist()
+        )
+        plt.figure(figsize=(10, 6))
+        # 去掉fontsize参数，避免报错
+        shap.waterfall_plot(exp, show=False, max_display=8)
+        plt.tight_layout()
+
+        buf = BytesIO()
+        plt.savefig(buf, format='png', dpi=200, bbox_inches='tight')
+        buf.seek(0)
+        img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        plt.close()
+        return img_base64
+    except Exception as e:
+        st.warning(f"SHAP图生成失败：{str(e)}")
         return ""
 
 def generate_html_report(prob, label, shap_img_base64, raw_features_df, ai_features, financial_series, shap_text,
