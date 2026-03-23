@@ -126,46 +126,55 @@ def set_chinese_font():
         plt.rcParams['font.sans-serif'] = ['sans-serif']
         plt.rcParams['axes.unicode_minus'] = False
 
+import matplotlib.pyplot as plt
+import numpy as np
+import base64
+from io import BytesIO
+import shap
+import pandas as pd
+
 def generate_trend_plot_base64(financial_df: pd.DataFrame):
-    """生成财务指标趋势图（彻底解决中文乱码 + 适配2015-2019数据）"""
+    """生成财务指标趋势图（全英文显示，解决乱码，适配2015-2019数据）"""
     try:
-        # 第一步：强制设置中文字体（核心修复）
-        set_chinese_font()
+        # 重置字体（无需中文字体，彻底避免乱码）
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
+        plt.rcParams['axes.unicode_minus'] = False
+        plt.rcParams['font.family'] = 'sans-serif'
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
-        fig.suptitle('核心财务指标趋势分析 (2015-2019)', fontsize=16, fontweight='bold', y=0.98)
+        fig.suptitle('Core Financial Indicators Trend Analysis (2015-2019)', fontsize=16, fontweight='bold', y=0.98)
 
         colors = ['#dc2626', '#2563eb', '#d97706', '#059669']
         markers = ['o', 's', '^', '*']
 
-        # ROE 趋势
+        # ROE 趋势（英文标题）
         ax1.plot(financial_df['year'], financial_df['ROE'], marker=markers[0], linewidth=3, color=colors[0], markersize=6)
-        ax1.set_title('ROE (净资产收益率) 变化趋势', fontweight='bold', fontsize=12)
-        ax1.set_xlabel('年份', fontsize=10)
+        ax1.set_title('ROE (Return on Equity) Trend', fontweight='bold', fontsize=12)
+        ax1.set_xlabel('Year', fontsize=10)
         ax1.set_ylabel('ROE', fontsize=10)
         ax1.grid(True, alpha=0.3, linestyle='--')
         ax1.set_ylim(min(financial_df['ROE']) * 0.8, max(financial_df['ROE']) * 1.2)
 
-        # 资产负债率趋势
+        # 资产负债率 → Asset-Liability Ratio
         ax2.plot(financial_df['year'], financial_df['资产负债率'], marker=markers[1], linewidth=3, color=colors[1], markersize=6)
-        ax2.set_title('资产负债率 变化趋势', fontweight='bold', fontsize=12)
-        ax2.set_xlabel('年份', fontsize=10)
-        ax2.set_ylabel('资产负债率', fontsize=10)
+        ax2.set_title('Asset-Liability Ratio Trend', fontweight='bold', fontsize=12)
+        ax2.set_xlabel('Year', fontsize=10)
+        ax2.set_ylabel('Asset-Liability Ratio', fontsize=10)
         ax2.grid(True, alpha=0.3, linestyle='--')
         ax2.set_ylim(0, max(financial_df['资产负债率']) * 1.1)
 
-        # 流动比率趋势
+        # 流动比率 → Current Ratio
         ax3.plot(financial_df['year'], financial_df['流动比率'], marker=markers[2], linewidth=3, color=colors[2], markersize=6)
-        ax3.set_title('流动比率 变化趋势', fontweight='bold', fontsize=12)
-        ax3.set_xlabel('年份', fontsize=10)
-        ax3.set_ylabel('流动比率', fontsize=10)
+        ax3.set_title('Current Ratio Trend', fontweight='bold', fontsize=12)
+        ax3.set_xlabel('Year', fontsize=10)
+        ax3.set_ylabel('Current Ratio', fontsize=10)
         ax3.grid(True, alpha=0.3, linestyle='--')
 
-        # 存货周转率趋势
+        # 存货周转率 → Inventory Turnover Rate
         ax4.plot(financial_df['year'], financial_df['存货周转率'], marker=markers[3], linewidth=3, color=colors[3], markersize=6)
-        ax4.set_title('存货周转率 变化趋势', fontweight='bold', fontsize=12)
-        ax4.set_xlabel('年份', fontsize=10)
-        ax4.set_ylabel('存货周转率', fontsize=10)
+        ax4.set_title('Inventory Turnover Rate Trend', fontweight='bold', fontsize=12)
+        ax4.set_xlabel('Year', fontsize=10)
+        ax4.set_ylabel('Inventory Turnover Rate', fontsize=10)
         ax4.grid(True, alpha=0.3, linestyle='--')
 
         plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -176,16 +185,17 @@ def generate_trend_plot_base64(financial_df: pd.DataFrame):
         plt.close()
         return img_base64
     except Exception as e:
-        st.warning(f"趋势图生成失败：{str(e)}")
+        st.warning(f"Trend plot generation failed: {str(e)}")
         return ""
 
 def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expected_value):
-    """生成SHAP图（彻底解决中文乱码 + 修复fontsize参数错误）"""
+    """生成SHAP图（全英文特征名，解决乱码 + 修复参数错误）"""
     try:
-        # 第一步：强制设置中文字体（核心修复）
-        set_chinese_font()
-        # 设置全局字体大小（替代fontsize参数）
+        # 重置字体（纯英文，无乱码）
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
+        plt.rcParams['axes.unicode_minus'] = False
         plt.rcParams['font.size'] = 10
+        plt.rcParams['font.family'] = 'sans-serif'
 
         # 处理SHAP值维度
         if isinstance(shap_values, list):
@@ -196,14 +206,47 @@ def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expect
         if isinstance(expected_value, (list, np.ndarray)):
             expected_value = expected_value.item() if expected_value.size == 1 else expected_value[0]
 
+        # 🔴 核心：中文特征名 → 英文映射（解决SHAP图中文乱码）
+        cn_to_en = {
+            "速动比率": "Quick Ratio",
+            "应收账款周转率": "Accounts Receivable Turnover",
+            "总资产收益率": "ROA (Return on Assets)",
+            "净资产收益率": "ROE (Return on Equity)",
+            "营收总额": "Total Revenue",
+            "净利润": "Net Profit",
+            "上市年限": "Listing Years",
+            "每股收益": "EPS (Earnings Per Share)",
+            "托宾Q值": "Tobin's Q Ratio",
+            "总负债": "Total Liabilities",
+            "税率": "Tax Rate",
+            "流动资产周转率": "Current Asset Turnover",
+            "总资产增长率": "Total Asset Growth Rate",
+            "运营费用比率": "Operating Expense Ratio",
+            "固定资产比率": "Fixed Asset Ratio",
+            "权益乘数": "Equity Multiplier",
+            "最大股东持股比例": "Largest Shareholder Ratio",
+            "管理层持股比例": "Management Shareholding Ratio",
+            "亏损指标": "Loss Indicator",
+            "内部控制有效性": "Internal Control Effectiveness",
+            "融资约束SA指数": "SA Index (Financing Constraint)",
+            # 旧特征名映射
+            "ROE": "ROE (Return on Equity)",
+            "资产负债率": "Asset-Liability Ratio",
+            "流动比率": "Current Ratio",
+            "存货周转率": "Inventory Turnover Rate",
+            "现金流量净额": "Net Cash Flow",
+            "财务杠杆率": "Financial Leverage Ratio"
+        }
+        # 替换特征名为英文
+        en_feature_names = [cn_to_en.get(col, col) for col in feature_vector_scaled.columns.tolist()]
+
         exp = shap.Explanation(
             values=shap_values,
             base_values=expected_value,
             data=feature_vector_scaled.iloc[0].values,
-            feature_names=feature_vector_scaled.columns.tolist()
+            feature_names=en_feature_names  # 使用英文特征名
         )
         plt.figure(figsize=(10, 6))
-        # 去掉fontsize参数，避免报错
         shap.waterfall_plot(exp, show=False, max_display=8)
         plt.tight_layout()
 
@@ -214,7 +257,7 @@ def shap_plot_to_base64(feature_vector_scaled: pd.DataFrame, shap_values, expect
         plt.close()
         return img_base64
     except Exception as e:
-        st.warning(f"SHAP图生成失败：{str(e)}")
+        st.warning(f"SHAP plot generation failed: {str(e)}")
         return ""
 
 def generate_html_report(prob, label, shap_img_base64, raw_features_df, ai_features, financial_series, shap_text,
